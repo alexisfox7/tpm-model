@@ -5,8 +5,8 @@ DATASET_NAME="maze-30x30-hard-1k"
 
 export WANDB_PROJECT="Tiny_progressive_models"
 
-DATA_PATH="$WORK_BASE/data/$DATASET_NAME"
-CHECKPOINT_PATH="$WORK_BASE/checkpoints/tpm/$RUN_NAME"
+DATA_PATH="$WORK_BASE/tpm/data/$DATASET_NAME"
+CHECKPOINT_PATH="$WORK_BASE/tpm/checkpoints/tpm/$RUN_NAME"
 
 mkdir -p "$CHECKPOINT_PATH" 
 
