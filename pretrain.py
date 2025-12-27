@@ -74,8 +74,8 @@ class PretrainConfig(pydantic.BaseModel):
 
     # Extras
     seed: int = 0
-    checkpoint_every_eval: bool = False
-    eval_interval: Optional[int] = None
+    checkpoint_interval: Optional[int] = None  # If None, only checkpoint at end
+    eval_interval: Optional[int] = None  # If None, only evaluate at end
     min_eval_interval: Optional[int] = 0 # when to start eval
     eval_save_outputs: List[str] = []
 
@@ -561,10 +561,16 @@ def launch(hydra_config: DictConfig):
     torch.random.manual_seed(config.seed + RANK)
 
     # Dataset
-    train_epochs_per_iter = config.eval_interval if config.eval_interval is not None else config.epochs
+    if config.checkpoint_interval is None:
+        config.checkpoint_interval = config.epochs
+    if config.eval_interval is None:
+        config.eval_interval = config.epochs
+    train_epochs_per_iter = math.gcd(config.eval_interval, config.checkpoint_interval)
     total_iters = config.epochs // train_epochs_per_iter
 
-    assert config.epochs % train_epochs_per_iter == 0, "Eval interval must be a divisor of total epochs."
+    assert config.epochs % config.checkpoint_interval == 0, "Checkpoint interval must be a divisor of total epochs."
+    assert config.epochs % config.eval_interval == 0, "Eval interval must be a divisor of total epochs."
+    assert config.epochs % train_epochs_per_iter == 0, "GCD must be a divisor of total epochs."
 
     train_loader, train_metadata = create_dataloader(config, "train", test_set_mode=False, epochs_per_iter=train_epochs_per_iter, global_batch_size=config.global_batch_size, rank=RANK, world_size=WORLD_SIZE)
     try:
@@ -612,17 +618,25 @@ def launch(hydra_config: DictConfig):
             if config.ema:
                 ema_helper.update(train_state.model)
 
-        if _iter_id >= config.min_eval_interval:
-            ############ Evaluation
-            if RANK == 0:
-                print("EVALUATE")
-            if config.ema:
-                print("SWITCH TO EMA")
-                train_state_eval = copy.deepcopy(train_state)
-                train_state_eval.model = ema_helper.ema_copy(train_state_eval.model)
-            else:
-                train_state_eval = train_state
-            train_state_eval.model.eval()
+        
+        ############ After train
+        completed_epochs = (_iter_id + 1) * train_epochs_per_iter
+        do_eval = completed_epochs % config.eval_interval == 0
+        do_ckpt = completed_epochs % config.checkpoint_interval == 0
+
+        ############ Evaluation
+        # if _iter_id >= config.min_eval_interval: i dont care about min interval config
+        if RANK == 0:
+            print("EVALUATE")
+        if config.ema:
+            print("SWITCH TO EMA")
+            train_state_eval = copy.deepcopy(train_state)
+            train_state_eval.model = ema_helper.ema_copy(train_state_eval.model)
+        else:
+            train_state_eval = train_state
+        train_state_eval.model.eval()
+
+        if do_eval:
             metrics = evaluate(config, 
                 train_state_eval, 
                 eval_loader, 
@@ -635,14 +649,15 @@ def launch(hydra_config: DictConfig):
             if RANK == 0 and metrics is not None:
                 wandb.log(metrics, step=train_state.step)
                 
-            ############ Checkpointing
+        ############ Checkpointing
+        if do_ckpt:
             if RANK == 0:
                 print("SAVE CHECKPOINT")
-            if RANK == 0 and (config.checkpoint_every_eval or (_iter_id == total_iters - 1)):
+            if RANK == 0:
                 save_train_state(config, train_state_eval)
 
-            if config.ema:
-                del train_state_eval
+        if config.ema:
+            del train_state_eval
 
     # finalize
     if dist.is_initialized():
