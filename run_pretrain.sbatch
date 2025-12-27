@@ -12,7 +12,7 @@
 source ~/.bashrc
 micromamba activate tpm
 
-RUN_NAME="maze30x30_trm"
+RUN_NAME="sudoku_extreme_trm"
 DATASET_NAME="sudoku-extreme-1k-aug-1000"
 
 export WANDB_PROJECT="Tiny_progressive_models" #!FIX doesnt do anything rn
