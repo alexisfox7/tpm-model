@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p h200ea
 #SBATCH --account=h200ea
-#SBATCH --gres=gpu:h200:1          
+#SBATCH --gres=gpu:h200:2          
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
 #SBATCH --time=7:00:00
@@ -15,7 +15,7 @@ micromamba activate tpm
 RUN_NAME="maze30x30_trm"
 DATASET_NAME="sudoku-extreme-1k-aug-1000"
 
-export WANDB_PROJECT="Tiny_progressive_models"
+export WANDB_PROJECT="Tiny_progressive_models" #!FIX doesnt do anything rn
 
 DATA_PATH="$WORK_BASE/tpm/data/$DATASET_NAME"
 CHECKPOINT_PATH="$WORK_BASE/tpm/checkpoints/tpm/$RUN_NAME"
@@ -31,13 +31,12 @@ python pretrain.py \
   data_paths="[$DATA_PATH]" \
   evaluators="[]" \
   epochs=50000 \
-  eval_interval=50000 \
+  eval_interval=10000 \
   checkpoint_interval=10000 \
   +checkpoint_path="$CHECKPOINT_PATH" \
   lr=1e-4 puzzle_emb_lr=1e-4 \
   weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
-  global_batch_size=128 \
   arch.L_layers=2 \
-  arch.H_cycles=3 arch.L_cycles=4 \
+  arch.H_cycles=3 arch.L_cycles=6 \
   +run_name="$RUN_NAME" \
   ema=True
