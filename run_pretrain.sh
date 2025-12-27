@@ -1,7 +1,7 @@
 #!/bin/bash
 
 RUN_NAME="maze30x30_trm"
-DATASET_NAME="maze-30x30-hard-1k"
+DATASET_NAME="sudoku-extreme-1k-aug-1000"
 
 export WANDB_PROJECT="Tiny_progressive_models"
 
