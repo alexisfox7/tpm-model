@@ -36,6 +36,7 @@ python pretrain.py \
   +checkpoint_path="$CHECKPOINT_PATH" \
   lr=1e-4 puzzle_emb_lr=1e-4 \
   weight_decay=1.0 puzzle_emb_weight_decay=1.0 \
+  arch.mlp_t=True arch.pos_encodings=none \
   arch.L_layers=2 \
   arch.H_cycles=3 arch.L_cycles=6 \
   +run_name="$RUN_NAME" \
