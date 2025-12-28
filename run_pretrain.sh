@@ -32,6 +32,6 @@ python pretrain.py \
   arch.mlp_t=True arch.pos_encodings=none \
   arch.L_layers=2 \
   arch.H_cycles=3 arch.L_cycles=6 \
-  arch.loss.lambda_prog=$LAMBDA_PROG arch.loss.margin_m=0.0 arch.loss.phi_type="$PHI_TYPE" \
+  arch.loss.lambda_prog=$LAMBDA_PROG arch.loss.margin_m=0.0 arch.loss.phi_type=$PHI_TYPE \
   +run_name="$RUN_NAME" \
   ema=True
