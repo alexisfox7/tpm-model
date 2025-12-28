@@ -39,10 +39,15 @@ def softmax_cross_entropy(logits, labels, ignore_index: int = -100):
 
 
 class ACTLossHead(nn.Module):
-    def __init__(self, model: nn.Module, loss_type: str):
+    def __init__(self, model: nn.Module, loss_type: str, lambda_prog: float = 0.0, margin_m: float = 0.0, phi_type: str = "softplus"):
         super().__init__()
         self.model = model
         self.loss_fn = globals()[loss_type]
+
+        # monotonic loss config
+        self.lambda_prog = lambda_prog
+        self.margin_m = margin_m
+        self.phi_type = phi_type
         
     def initial_carry(self, *args, **kwargs):
         return self.model.initial_carry(*args, **kwargs)  # type: ignore
@@ -83,8 +88,35 @@ class ACTLossHead(nn.Module):
             }
 
         # Losses
+        loss_per_token = self.loss_fn(outputs["logits"], labels, ignore_index=IGNORE_LABEL_ID, valid_mask=mask) # (B, L)
+        lm_loss = (loss_per_token / loss_divisor).sum()
 
-        lm_loss = (self.loss_fn(outputs["logits"], labels, ignore_index=IGNORE_LABEL_ID, valid_mask=mask) / loss_divisor).sum()
+        # calculate progressive/monotonic loss
+        prog_loss = torch.tensor(0.0, device=lm_loss.device)
+        if self.lambda_prog != 0.0: # is enabled
+            prev_carry = model_kwargs["carry"]
+            V_curr = loss_per_token.sum(-1) / loss_counts.clamp_min(1) # (B,)
+            V_prev = prev_carry.prev_task_loss.to(V_curr.dtype) 
+            valid_prog_mask = (~prev_carry.halted) & (loss_counts > 0) # dont compare across puzzles
+            delta = (V_curr - V_prev) + self.margin_m # (B, ), this is regression delta. + when current loss is worse
+
+            if self.phi_type == "hinge":
+                penalty = F.relu(delta) # (B,)
+            elif self.phi_type == "softplus":
+                penalty = F.softplus(delta) # (B,)
+            else:
+                raise ValueError(f"Unknown phi type: {self.phi_type}")
+            
+            prog_loss = torch.where(valid_prog_mask, penalty, torch.zeros_like(penalty)).sum() # scalar
+            new_carry.prev_task_loss = V_curr.detach().to(torch.float32)
+
+            with torch.no_grad(): # detach is redundant
+                metrics.update({
+                    "prog_loss": prog_loss,
+                    "prog_count": valid_prog_mask.sum(),
+                    "regression_count": torch.where(valid_prog_mask & (delta > 0), torch.ones_like(delta), torch.zeros_like(delta)).sum(),
+                })
+            
         q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum")
         metrics.update({
             "lm_loss": lm_loss.detach(),
@@ -99,5 +131,5 @@ class ACTLossHead(nn.Module):
         # Filter outputs for return
         detached_outputs = {k: outputs[k].detach() for k in return_keys if k in outputs}
 
-        return new_carry, lm_loss + 0.5 * (q_halt_loss + q_continue_loss), metrics, detached_outputs, new_carry.halted.all()
+        return new_carry, lm_loss + 0.5 * (q_halt_loss + q_continue_loss) + self.lambda_prog * prog_loss, metrics, detached_outputs, new_carry.halted.all()
 

@@ -27,6 +27,7 @@ class TinyRecursiveReasoningModel_ACTV1Carry:
     halted: torch.Tensor
     
     current_data: Dict[str, torch.Tensor]
+    prev_task_loss: torch.Tensor
 
 
 class TinyRecursiveReasoningModel_ACTV1Config(BaseModel):
@@ -243,7 +244,8 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
             steps=torch.zeros((batch_size, ), dtype=torch.int32),
             halted=torch.ones((batch_size, ), dtype=torch.bool),  # Default to halted
             
-            current_data={k: torch.empty_like(v) for k, v in batch.items()}
+            current_data={k: torch.empty_like(v) for k, v in batch.items()},
+            prev_task_loss=torch.zeros((batch_size,), dtype=torch.float32, device=batch["inputs"].device)
         )
         
     def forward(self, carry: TinyRecursiveReasoningModel_ACTV1Carry, batch: Dict[str, torch.Tensor]) -> Tuple[TinyRecursiveReasoningModel_ACTV1Carry, Dict[str, torch.Tensor]]:
@@ -294,4 +296,4 @@ class TinyRecursiveReasoningModel_ACTV1(nn.Module):
                     _, _, (next_q_halt_logits, next_q_continue_logits), _, _ = self.inner(new_inner_carry, new_current_data)
                     outputs["target_q_continue"] = torch.sigmoid(torch.where(is_last_step, next_q_halt_logits, torch.maximum(next_q_halt_logits, next_q_continue_logits)))
 
-        return TinyRecursiveReasoningModel_ACTV1Carry(new_inner_carry, new_steps, halted, new_current_data), outputs
+        return TinyRecursiveReasoningModel_ACTV1Carry(new_inner_carry, new_steps, halted, new_current_data, carry.prev_task_loss), outputs

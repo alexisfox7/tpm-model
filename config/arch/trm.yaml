@@ -3,6 +3,11 @@ loss:
   name: losses@ACTLossHead
   loss_type: stablemax_cross_entropy
 
+  # monotonicity loss, disabled (lambda = 0) by default
+  lambda_prog: 0.0
+  margin_m: 0.0
+  phi_type: softplus
+
 halt_exploration_prob: 0.1
 halt_max_steps: 16
 
