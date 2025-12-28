@@ -93,28 +93,27 @@ class ACTLossHead(nn.Module):
 
         # calculate progressive/monotonic loss
         prog_loss = torch.tensor(0.0, device=lm_loss.device)
-        if self.lambda_prog != 0.0: # is enabled
-            prev_carry = model_kwargs["carry"]
-            V_curr = loss_per_token.sum(-1) / loss_counts.clamp_min(1) # (B,)
-            V_prev = prev_carry.prev_task_loss.to(V_curr.dtype) 
-            valid_prog_mask = (~prev_carry.halted) & (loss_counts > 0) # dont compare across puzzles
-            delta = (V_curr - V_prev) + self.margin_m # (B, ), this is regression delta. + when current loss is worse
+        prev_carry = model_kwargs["carry"]
+        V_curr = loss_per_token.sum(-1) / loss_counts.clamp_min(1) # (B,)
+        V_prev = prev_carry.prev_task_loss.to(V_curr.dtype) 
+        valid_prog_mask = (~prev_carry.halted) & (loss_counts > 0) # dont compare across puzzles
+        delta = (V_curr - V_prev) + self.margin_m # (B, ), this is regression delta. + when current loss is worse
 
-            if self.phi_type == "hinge":
-                penalty = F.relu(delta) # (B,)
-            elif self.phi_type == "softplus":
-                penalty = F.softplus(delta) # (B,)
-            else:
-                raise ValueError(f"Unknown phi type: {self.phi_type}")
-            
-            prog_loss = torch.where(valid_prog_mask, penalty, torch.zeros_like(penalty)).sum() # scalar
-            new_carry.prev_task_loss = V_curr.detach().to(torch.float32)
+        if self.phi_type == "hinge":
+            penalty = F.relu(delta) # (B,)
+        elif self.phi_type == "softplus":
+            penalty = F.softplus(delta) # (B,)
+        else:
+            raise ValueError(f"Unknown phi type: {self.phi_type}")
+        
+        prog_loss = torch.where(valid_prog_mask, penalty, torch.zeros_like(penalty)).sum() # scalar
+        new_carry.prev_task_loss = V_curr.detach().to(torch.float32)
 
-            metrics.update({
-                "prog_loss": prog_loss.detach(),
-                "prog_count": valid_prog_mask.sum().detach(),
-                "regression_count": torch.where(valid_prog_mask & (delta > 0), torch.ones_like(delta), torch.zeros_like(delta)).sum().detach(),
-            })
+        metrics.update({
+            "prog_loss": prog_loss.detach(),
+            "prog_count": valid_prog_mask.sum().detach(),
+            "regression_count": torch.where(valid_prog_mask & (delta > 0), torch.ones_like(delta), torch.zeros_like(delta)).sum().detach(),
+        })
             
         q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum")
 
