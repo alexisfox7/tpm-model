@@ -2,7 +2,8 @@
 
 # test
 LAMBDA_PROG=0.1
-RUN_NAME="sudoku_extreme_tpm_lambda${LAMBDA_PROG}"
+PHI_TYPE="hinge"
+RUN_NAME="sudoku_extreme_tpm_lambda${LAMBDA_PROG}_phi${PHI_TYPE}"
 DATASET_NAME="sudoku-extreme-1k-aug-1000"
 
 # doesnt do anything rn
@@ -31,6 +32,6 @@ python pretrain.py \
   arch.mlp_t=True arch.pos_encodings=none \
   arch.L_layers=2 \
   arch.H_cycles=3 arch.L_cycles=6 \
-  arch.loss.lambda_prog=$LAMBDA_PROG arch.loss.margin_m=0.0 arch.loss.phi_type=softplus \
+  arch.loss.lambda_prog=$LAMBDA_PROG arch.loss.margin_m=0.0 arch.loss.phi_type="$PHI_TYPE" \
   +run_name="$RUN_NAME" \
   ema=True
