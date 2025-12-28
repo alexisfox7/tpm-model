@@ -337,7 +337,22 @@ def train_batch(config: PretrainConfig, train_state: TrainState, batch: Any, glo
             
             # Postprocess
             count = max(reduced_metrics["count"], 1)  # Avoid NaNs
-            reduced_metrics = {f"train/{k}": v / (global_batch_size if k.endswith("loss") else count) for k, v in reduced_metrics.items()}
+            processed = {}
+            for k, v in reduced_metrics.items():
+                if k == "count":
+                    processed[f"train/{k}"] = v
+                    continue
+
+                if k.endswith("loss") or k.endswith("ratio"):
+                    denom = global_batch_size
+                elif k.startswith("mean_"):
+                    denom = max(world_size, 1)
+                else:
+                    denom = count
+
+                processed[f"train/{k}"] = v / denom
+            
+            reduced_metrics = processed
 
             reduced_metrics["train/lr"] = lr_this_step
             return reduced_metrics

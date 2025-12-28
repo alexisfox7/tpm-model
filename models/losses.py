@@ -109,10 +109,19 @@ class ACTLossHead(nn.Module):
         prog_loss = torch.where(valid_prog_mask, penalty, torch.zeros_like(penalty)).sum() # scalar
         new_carry.prev_task_loss = V_curr.detach().to(torch.float32)
 
+        valid_prog_count = valid_prog_mask.sum()
+        reg_mask = valid_prog_mask & (delta > 0)
+        reg_count = reg_mask.sum()
+
+        mean_delta = torch.where(valid_prog_mask, delta, torch.zeros_like(delta)).sum() / valid_prog_count.clamp_min(1)
+        mean_regression_delta = torch.where(reg_mask, delta, torch.zeros_like(delta)).sum() / reg_count.clamp_min(1)
+
         metrics.update({
             "prog_loss": prog_loss.detach(),
-            "prog_count": valid_prog_mask.sum().detach(),
-            "regression_count": torch.where(valid_prog_mask & (delta > 0), torch.ones_like(delta), torch.zeros_like(delta)).sum().detach(),
+            "prog_ratio": valid_prog_count.detach(), # gets divided by batch size later
+            "regression_ratio": reg_count.detach(),# gets divided by batch size later
+            "mean_delta": mean_delta.detach(),
+            "mean_regression_delta": mean_regression_delta.detach(),
         })
             
         q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum")
@@ -123,10 +132,8 @@ class ACTLossHead(nn.Module):
             q_continue_loss = F.binary_cross_entropy_with_logits(outputs["q_continue_logits"], outputs["target_q_continue"], reduction="sum")
             metrics["q_continue_loss"] = q_continue_loss.detach()
 
-        # Compute total loss
         total_loss = lm_loss + 0.5 * (q_halt_loss + q_continue_loss) + self.lambda_prog * prog_loss
 
-        # Update metrics with all losses
         metrics.update({
             "lm_loss": lm_loss.detach(),
             "q_halt_loss": q_halt_loss.detach(),
