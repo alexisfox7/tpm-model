@@ -110,12 +110,11 @@ class ACTLossHead(nn.Module):
             prog_loss = torch.where(valid_prog_mask, penalty, torch.zeros_like(penalty)).sum() # scalar
             new_carry.prev_task_loss = V_curr.detach().to(torch.float32)
 
-            with torch.no_grad():
-                metrics.update({
-                    "prog_loss": prog_loss.detach(),
-                    "prog_count": valid_prog_mask.sum().detach(),
-                    "regression_count": torch.where(valid_prog_mask & (delta > 0), torch.ones_like(delta), torch.zeros_like(delta)).sum().detach(),
-                })
+            metrics.update({
+                "prog_loss": prog_loss.detach(),
+                "prog_count": valid_prog_mask.sum().detach(),
+                "regression_count": torch.where(valid_prog_mask & (delta > 0), torch.ones_like(delta), torch.zeros_like(delta)).sum().detach(),
+            })
             
         q_halt_loss = F.binary_cross_entropy_with_logits(outputs["q_halt_logits"], seq_is_correct.to(outputs["q_halt_logits"].dtype), reduction="sum")
         metrics.update({

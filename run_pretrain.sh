@@ -1,8 +1,11 @@
 #!/bin/bash
 
-RUN_NAME="sudoku_extreme_trm"
+# test
+LAMBDA_PROG=0.1
+RUN_NAME="sudoku_extreme_tpm_lambda${LAMBDA_PROG}"
 DATASET_NAME="sudoku-extreme-1k-aug-1000"
 
+# doesnt do anything rn
 export WANDB_PROJECT="Tiny_progressive_models"
 
 DATA_PATH="$WORK_BASE/tpm/data/$DATASET_NAME"
@@ -14,8 +17,6 @@ echo "RUN_NAME        = $RUN_NAME"
 echo "DATA_PATH       = $DATA_PATH"
 echo "CHECKPOINT_PATH = $CHECKPOINT_PATH"
 
-# test
-LAMBDA_PROG=0.1
 
 python pretrain.py \
   arch=trm \
